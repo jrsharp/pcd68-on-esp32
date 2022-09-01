@@ -4,3 +4,6 @@
 [submodule "components/Adafruit-GFX"]
 	path = components/Adafruit-GFX
 	url = https://github.com/martinberlin/Adafruit-GFX-Library-ESP-IDF
+[submodule "components/pcd68"]
+	path = components/pcd68
+	url = ../pcd68-cpp
