@@ -1,21 +1,20 @@
 #include <stdio.h>
 
-#include <gdeh042Z21.h>
-#include <gdew042t2.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include <CPU.h>
 #include <KCTL.h>
-#include <Screen_SDL.h>
+#include <Screen_EPD.h>
 #include <TDA.h>
 
-EpdSpi io;
-Gdew042t2 display(io);
-//Gdeh042Z21 display(io);
+#include "text_demo.h"
 
-u8 systemRom[CPU::ROM_SIZE];     // ROM
-u8 systemRam[CPU::RAM_SIZE];     // RAM
+#define CYCLE_FACTOR 1000
+#define INPUT_FACTOR 20
+
+u8* systemRom;                   // ROM
+u8* systemRam;                   // RAM
 CPU* pcdCpu;                     // CPU
 TDA* textDisplayAdapter;         // Graphics adapter
 KCTL* keyboardController;        // Keyboard controller
@@ -30,7 +29,60 @@ extern "C" {
     void app_main();
 }
 
+bool handleEvents(u16* kc) {
+    return true;
+}
+
+// Main loop
+bool mainLoop() {
+    bool exit = false, clearKbdInt = false;
+
+    //std::cout << ".";
+
+    // Process input and update screen
+    i64 clocks = pcdCpu->getClock();
+    if (clocks % CYCLE_FACTOR == 0) {
+        // Process input only a fraction
+        if (clocks % (CYCLE_FACTOR * INPUT_FACTOR) == 0) {
+            exit = !handleEvents(&keyCode);
+
+            if (keyCode > 0) {
+                keyboardController->update(keyCode, mod);
+                textDisplayAdapter->update();
+                pcdScreen->refresh();
+                keyCode = 0;
+                mod = 0;
+                clearKbdInt = true;
+            }
+        }
+
+        if (clocks % (CYCLE_FACTOR * 10)) {
+            textDisplayAdapter->update();
+            pcdScreen->refresh();
+        }
+    }
+
+    //std::cout << "\n\nBefore Instruction: \n\n" << std::endl;
+    //pcdCpu->printState();
+
+    // Advance CPU
+    pcdCpu->execute();
+
+    if (clearKbdInt) {
+        keyboardController->clear();
+        clearKbdInt = false;
+    }
+
+    return exit;
+}
+
 void app_main(void) {
+
+    systemRom = (u8*)malloc(CPU::ROM_SIZE);
+    systemRam = (u8*)malloc(CPU::RAM_SIZE);
+
+    // Load binary
+    memcpy(systemRom, text_demo_bin, text_demo_bin_len);
 
     // Start with a CPU
     pcdCpu = new CPU();
@@ -66,4 +118,7 @@ void app_main(void) {
     textDisplayAdapter->update();
     pcdScreen->refresh();
 
+    while (!mainLoop()) {}
+
+    std::cout << "Clocks: " << std::dec << pcdCpu->getClock() << std::endl;
 }
