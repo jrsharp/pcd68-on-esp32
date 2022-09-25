@@ -1,10 +1,10 @@
 #include <stdio.h>
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "led_strip.h"
 
 #include <CPU.h>
-#include <KCTL.h>
+#include <BLE_KCTL.h>
 #include <Screen_EPD.h>
 #include <TDA.h>
 
@@ -17,45 +17,22 @@ u8* systemRom;                   // ROM
 u8* systemRam;                   // RAM
 CPU* pcdCpu;                     // CPU
 TDA* textDisplayAdapter;         // Graphics adapter
-KCTL* keyboardController;        // Keyboard controller
+BLE_KCTL* keyboardController;    // Keyboard controller
 Screen* pcdScreen;               // Screen instance
 u32 keydownDebounceMs = 0;       // debounce period (in ms) for keyboard input
 i64 interruptDebounceClocks = 0; // debounce period (in clocks) for keyboard input interrupt
 i64 lastClock = 0;
-u16 keyCode = 0;
-u16 mod = 0;
+bool dataAvailable = false;      // Clear int
 
 extern "C" {
     void app_main();
 }
 
-bool handleEvents(u16* kc) {
-    return true;
-}
-
 // Main loop
 bool mainLoop() {
-    bool exit = false, clearKbdInt = false;
-
-    //std::cout << ".";
-
     // Process input and update screen
     i64 clocks = pcdCpu->getClock();
     if (clocks % CYCLE_FACTOR == 0) {
-        // Process input only a fraction
-        if (clocks % (CYCLE_FACTOR * INPUT_FACTOR) == 0) {
-            exit = !handleEvents(&keyCode);
-
-            if (keyCode > 0) {
-                keyboardController->update(keyCode, mod);
-                textDisplayAdapter->update();
-                pcdScreen->refresh();
-                keyCode = 0;
-                mod = 0;
-                clearKbdInt = true;
-            }
-        }
-
         if (clocks % (CYCLE_FACTOR * 10)) {
             textDisplayAdapter->update();
             pcdScreen->refresh();
@@ -68,16 +45,17 @@ bool mainLoop() {
     // Advance CPU
     pcdCpu->execute();
 
-    if (clearKbdInt) {
+    if (dataAvailable) {
         keyboardController->clear();
-        clearKbdInt = false;
+        dataAvailable = false;
     }
 
-    return exit;
+    return false;
 }
 
 void app_main(void) {
 
+    // Allocate ROM + RAM:
     systemRom = (u8*)malloc(CPU::ROM_SIZE);
     systemRam = (u8*)malloc(CPU::RAM_SIZE);
 
@@ -88,9 +66,9 @@ void app_main(void) {
     pcdCpu = new CPU();
 
     // Set up peripherals
-    pcdScreen = new Screen(Screen::BASE_ADDR, sizeof(Screen::Registers) + sizeof(Screen::framebufferMem));
+    pcdScreen = new Screen_EPD(Screen::BASE_ADDR, sizeof(Screen::Registers) + sizeof(Screen::framebufferMem));
     textDisplayAdapter = new TDA(pcdCpu, pcdScreen, TDA::BASE_ADDR, sizeof(TDA::textMapMem) + sizeof(TDA::Registers));
-    keyboardController = new KCTL(pcdCpu, KCTL::BASE_ADDR, sizeof(KCTL::Registers));
+    keyboardController = new BLE_KCTL(pcdCpu, BLE_KCTL::BASE_ADDR, sizeof(BLE_KCTL::Registers), &dataAvailable);
 
     // Attach to CPU
     pcdCpu->attachPeripheral(pcdScreen);
@@ -99,6 +77,18 @@ void app_main(void) {
 
     // Any that require init()
     int result = pcdScreen->init();
+    result = keyboardController->init();
+
+    // Turn on front-light:
+    led_strip_t* strip = led_strip_init(0, GPIO_NUM_14, 4);
+    strip->set_pixel(strip, 0, 200, 200, 160);
+    strip->set_pixel(strip, 1, 200, 200, 160);
+    strip->set_pixel(strip, 2, 200, 200, 160);
+    strip->set_pixel(strip, 3, 200, 200, 160);
+    strip->refresh(strip, 100);
+
+    // Spin up HID handler task
+    xTaskCreate(&BLE_KCTL::hidTask, "HID Task", 6 * 1024, NULL, 2, NULL);
 
     // And/or reset()
     keyboardController->reset();
