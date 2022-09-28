@@ -1,0 +1,10 @@
+{
+    "idf.adapterTargetName": "esp32s3",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "idf.flashType": "JTAG",
+    "idf.port": "/dev/ttyACM0",
+    "sonarlint.connectedMode.project": {
+        "connectionId": "LocalSonarqube",
+        "projectKey": "pcd68-on-esp32"
+    }
+}
