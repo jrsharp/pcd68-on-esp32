@@ -3,8 +3,7 @@
 SemaphoreHandle_t* BLE_KCTL::semaphore = nullptr;
 
 BLE_KCTL::BLE_KCTL(CPU* cpu, uint32_t start, uint32_t size, bool* dataAvailableFlag) :
-    Peripheral(start, size) {
-    this->cpu = cpu;
+    KCTL(cpu, start, size) {
     this->dataAvailableFlag = dataAvailableFlag;
 }
 
@@ -32,7 +31,7 @@ int BLE_KCTL::init() {
 }
 
 void BLE_KCTL::reset() {
-    registers.status = Status::CONNECTED;
+    this->registers.status = Status::CONNECTED;
 }
 
 void BLE_KCTL::update() {
@@ -99,12 +98,20 @@ void BLE_KCTL::hidCallback(void* handler_args, esp_event_base_t base, int32_t id
         const uint8_t *bda = esp_hidh_dev_bda_get(param->input.dev);
         ESP_LOGI(TAG, ESP_BD_ADDR_STR " INPUT: %8s, MAP: %2u, ID: %3u, Len: %d, Data:", ESP_BD_ADDR_HEX(bda), esp_hid_usage_str(param->input.usage), param->input.map_index, param->input.report_id, param->input.length);
         ESP_LOG_BUFFER_HEX(TAG, param->input.data, param->input.length);
-        //self->registers.keycode = param->input.data[2];
-        self->registers.keycode = 'a';
-        self->registers.mod = param->input.data[0];
-        self->update();
-        if (self->dataAvailableFlag != nullptr) {
-            *(self->dataAvailableFlag) = true;
+        u8 mod = param->input.data[0];
+        u8 key1 = param->input.data[2];
+        u8 key2 = param->input.data[3];
+        u8 key3 = param->input.data[4];
+        u8 key4 = param->input.data[5];
+        u8 key5 = param->input.data[6];
+        u8 key6 = param->input.data[7];
+        if (self->registers.pendingReportCount < REPORT_STACK_SIZE) {
+            KCTL::KeyReport report = { mod, { key1, key2, key3, key4, key5, key6, 0x00 } };
+            self->registers.reportStack[self->registers.pendingReportCount++] = report;
+            self->update();
+            if (self->dataAvailableFlag != nullptr) {
+                *(self->dataAvailableFlag) = true;
+            }
         }
 
         /*

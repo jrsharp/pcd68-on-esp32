@@ -3,10 +3,11 @@
 #include "freertos/task.h"
 #include "led_strip.h"
 
-#include <CPU.h>
-#include <BLE_KCTL.h>
-#include <Screen_EPD.h>
-#include <TDA.h>
+#include "PCD68_CPU.h"
+#include "KCTL.h"
+#include "BLE_KCTL.h"
+#include "Screen_EPD.h"
+#include "TDA.h"
 
 #include "text_demo.h"
 
@@ -68,7 +69,7 @@ void app_main(void) {
     // Set up peripherals
     pcdScreen = new Screen_EPD(Screen::BASE_ADDR, sizeof(Screen::Registers) + sizeof(Screen::framebufferMem));
     textDisplayAdapter = new TDA(pcdCpu, pcdScreen, TDA::BASE_ADDR, sizeof(TDA::textMapMem) + sizeof(TDA::Registers));
-    keyboardController = new BLE_KCTL(pcdCpu, BLE_KCTL::BASE_ADDR, sizeof(BLE_KCTL::Registers), &dataAvailable);
+    keyboardController = new BLE_KCTL(pcdCpu, KCTL::BASE_ADDR, sizeof(KCTL::Registers), &dataAvailable);
 
     // Attach to CPU
     pcdCpu->attachPeripheral(pcdScreen);
@@ -85,6 +86,10 @@ void app_main(void) {
     strip->set_pixel(strip, 1, 200, 200, 160);
     strip->set_pixel(strip, 2, 200, 200, 160);
     strip->set_pixel(strip, 3, 200, 200, 160);
+    //strip->set_pixel(strip, 0, 0, 0, 0);
+    //strip->set_pixel(strip, 1, 0, 0, 0);
+    //strip->set_pixel(strip, 2, 0, 0, 0);
+    //strip->set_pixel(strip, 3, 0, 0, 0);
     strip->refresh(strip, 100);
 
     // Spin up HID handler task

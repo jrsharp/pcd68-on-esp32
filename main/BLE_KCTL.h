@@ -2,7 +2,8 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "CPU.h"
+#include "PCD68_CPU.h"
+#include "KCTL.h"
 #include "Peripheral.h"
 #include "esp_system.h"
 #include "esp_event.h"
@@ -23,31 +24,9 @@
 extern u8* systemRam;
 static constexpr char* TAG = "BLE_KCTL";
 
-class BLE_KCTL : public Peripheral {
+class BLE_KCTL : public KCTL {
 
 public:
-    /**
-     * Video/Text mode
-     */
-    enum Status : u8 {
-        CONNECTED = 0x01,
-    };
-
-    /**
-     * Struct for KCTL's registers
-     */
-    struct Registers {
-        Status status;
-        u16 keycode;
-        u16 mod;
-    };
-
-    /** Default base address for peripheral */
-    static constexpr u32 BASE_ADDR = 0x420000;
-
-    /** Keyboard interrupt level (68000) */
-    static constexpr u8 KBD_INT_LEVEL = 3;
-
     /**
      * Constructor
      *
@@ -91,7 +70,5 @@ public:
     static SemaphoreHandle_t* semaphore;
 
 private:
-    CPU* cpu;
     bool* dataAvailableFlag;
-    Registers registers;
 };
